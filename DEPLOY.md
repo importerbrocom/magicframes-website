@@ -139,41 +139,53 @@ This lets the website save photos you upload later.
 
 ## Step 7 — Create your admin login
 
-You need SSH for this one step. In hPanel go to **Advanced → SSH Access** and
-note the **IP address**, **username**, and **port** (usually `65002`).
+**No SSH needed.** The file `api/setup_admin_web.php` is already in the files you
+uploaded. It is a one-time setup page.
 
-**Windows:** open **PowerShell**. **Mac:** open **Terminal**. Then:
+1. In your browser, go to:
+
+   ```
+   https://yourdomain.com/api/setup_admin_web.php
+   ```
+
+2. Choose a **username** and a **password** (at least 8 characters), and confirm
+   the password.
+3. Click **Create admin user**.
+
+You'll see *"Admin user created"*, and **the page deletes itself** so nobody
+else can ever use it.
+
+> If it reports that it could not delete itself, remove
+> `api/setup_admin_web.php` manually in File Manager. It also refuses to run at
+> all once an admin exists, so it cannot be used against you.
+
+Your password is encrypted (bcrypt) **on your own server** — it is never sent to
+any other website.
+
+<details>
+<summary>Prefer the command line? (only if you do have SSH)</summary>
 
 ```bash
 ssh -p 65002 YOUR_SSH_USERNAME@YOUR_SERVER_IP
-```
-
-Type `yes` if asked about the fingerprint, then enter your Hostinger password
-(it won't show as you type — that's normal).
-
-Once connected:
-
-```bash
 cd ~/domains/YOURDOMAIN.com/mabsite
 php api/setup_admin.php yourname 'YourStrongPassword123'
 ```
 
-Replace `YOURDOMAIN.com`, `yourname`, and the password. **Keep the single
-quotes** around the password.
+Keep the single quotes around the password.
 
-You should see: `Admin user 'yourname' created.`
+</details>
 
 <details>
-<summary>No SSH access? Use phpMyAdmin instead</summary>
+<summary>Forgot your password later?</summary>
 
-1. Go to <https://bcrypt-generator.com>, enter your chosen password, and copy
-   the generated hash (it starts with `$2y$`).
-2. In phpMyAdmin, select your database → **SQL** tab, and run:
+1. In phpMyAdmin, select your database → **SQL** tab → run:
 
    ```sql
-   INSERT INTO admin_users (id, username, password_hash)
-   VALUES (UUID(), 'yourname', 'PASTE_THE_HASH_HERE');
+   DELETE FROM admin_users;
    ```
+
+2. Re-upload `api/setup_admin_web.php` from the GitHub download.
+3. Visit the URL again and create a new login.
 
 </details>
 
@@ -213,6 +225,9 @@ Now add your real photos and videos through the **Images**, **Videos**, and
 | "Database error… schema was imported" | Tables weren't created | Redo Step 3 |
 | Photo upload fails | Folder isn't writable | Redo Step 6 (permissions 755) |
 | Can't log in | Admin user wasn't created | Redo Step 7 |
+| Setup page says "Already set up" | An admin already exists | Log in, or run `DELETE FROM admin_users;` in phpMyAdmin and retry |
+| Setup page says "Tables not created" | Schema wasn't imported | Redo Step 3 |
+| Setup page says "Database not connected" | `config.php` details are wrong | Recheck Step 5 |
 | Locked out after wrong passwords | Security lockout (5 tries) | Wait 15 minutes |
 
 Still stuck? Tell me what you see and I'll help.
