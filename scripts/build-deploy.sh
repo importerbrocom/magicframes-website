@@ -36,7 +36,11 @@ mkdir -p deploy/uploads
 cp uploads/.htaccess deploy/uploads/.htaccess
 touch deploy/uploads/.gitkeep
 
-# 4) A short note so the folder is self-explanatory after download.
+# 4) Root .htaccess: DirectoryIndex (avoids a 403 when the server's default
+#    differs), no directory listing, 404 page, and cache headers.
+cp public-root.htaccess deploy/.htaccess
+
+# 5) A short note so the folder is self-explanatory after download.
 cat > deploy/READ-ME-FIRST.txt <<'TXT'
 MagicFrames — ready-to-upload website files
 ===========================================
