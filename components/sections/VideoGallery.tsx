@@ -7,6 +7,7 @@ import Reveal from '@/components/Reveal';
 import { getDataProvider } from '@/lib/data/provider';
 import { parseVimeoId } from '@/lib/video';
 import type { GalleryVideo } from '@/lib/types';
+import SectionStatus, { type LoadState } from '@/components/SectionStatus';
 
 function embedUrl(video: GalleryVideo): string {
   if (video.provider === 'youtube') {
@@ -72,16 +73,23 @@ function VideoCard({ video, delay }: { video: GalleryVideo; delay: number }) {
 
 export default function VideoGallery() {
   const [videos, setVideos] = useState<GalleryVideo[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
 
   useEffect(() => {
     let alive = true;
     getDataProvider()
       .listVideos()
       .then((data) => {
-        if (alive) setVideos(data);
+        if (alive) {
+          setVideos(data);
+          setLoadState('ready');
+        }
       })
       .catch(() => {
-        if (alive) setVideos([]);
+        if (alive) {
+          setVideos([]);
+          setLoadState('error');
+        }
       });
     return () => {
       alive = false;
@@ -109,11 +117,7 @@ export default function VideoGallery() {
           ))}
         </div>
 
-        {videos.length === 0 && (
-          <p className="mt-10 text-center text-sm text-ink-700/60">
-            Films will appear here once added from the dashboard.
-          </p>
-        )}
+        <SectionStatus state={loadState} count={videos.length} noun="films" />
       </div>
     </section>
   );

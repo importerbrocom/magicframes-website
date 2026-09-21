@@ -6,6 +6,7 @@ import PlaceholderImage from '@/components/PlaceholderImage';
 import { getDataProvider } from '@/lib/data/provider';
 import type { GalleryImage } from '@/lib/types';
 import { Button, Field, TextInput } from './ui';
+import ImageUploadField from './ImageUploadField';
 
 interface FormState {
   title: string;
@@ -127,6 +128,16 @@ export default function ImagesManager() {
             placeholder="https://... or /uploads/photo.jpg"
           />
         </Field>
+        <ImageUploadField
+          onUploaded={({ url, width, height }) =>
+            setForm((prev) => ({
+              ...prev,
+              src: url,
+              width: String(width),
+              height: String(height),
+            }))
+          }
+        />
         <Field id="img-alt" label="Alt text">
           <TextInput
             id="img-alt"

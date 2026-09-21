@@ -1,9 +1,19 @@
 import type { GalleryImage, GalleryVideo, Project } from '@/lib/types';
 
-// A single async CRUD abstraction over the three content types. Concrete
-// implementations live in `local.ts` (browser localStorage fallback) and
-// `supabase.ts` (managed Postgres). `getDataProvider` chooses which one to
-// use based on the presence of the Supabase env vars.
+// A single async CRUD abstraction over the three content types.
+//
+// Implementations:
+//  - `api.ts`   — the PHP + MySQL REST API in `api/` (production on Hostinger).
+//  - `local.ts` — browser localStorage, seeded with placeholder demo content,
+//                 used for local development with no database.
+//
+// Selection rules (see `getDataProvider`):
+//  - During the static export / server render there is no `window`, so the
+//    local provider's seed data is used to prerender the markup.
+//  - In the browser the API provider is used by default, because a deployed
+//    site always ships the api/ folder alongside it.
+//  - Set NEXT_PUBLIC_USE_LOCAL=1 at build time to force the localStorage
+//    provider instead (handy for design work without a database).
 
 export interface DataProvider {
   listImages(): Promise<GalleryImage[]>;
@@ -22,11 +32,18 @@ export interface DataProvider {
   removeProject(id: string): Promise<void>;
 }
 
-export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
+/** True when the build explicitly opts into the localStorage provider. */
+export function isLocalModeForced(): boolean {
+  return process.env.NEXT_PUBLIC_USE_LOCAL === '1';
+}
+
+/**
+ * Whether the app is talking to the PHP + MySQL API. False during the static
+ * export (no `window`) and when local mode is forced.
+ */
+export function isApiMode(): boolean {
+  if (isLocalModeForced()) return false;
+  return typeof window !== 'undefined';
 }
 
 let cached: DataProvider | null = null;
@@ -34,10 +51,9 @@ let cached: DataProvider | null = null;
 export function getDataProvider(): DataProvider {
   if (cached) return cached;
 
-  if (isSupabaseConfigured()) {
-    // Lazy import so the local fallback works even if Supabase isn't set up.
-    const { createSupabaseProvider } = require('./supabase') as typeof import('./supabase');
-    cached = createSupabaseProvider();
+  if (isApiMode()) {
+    const { createApiProvider } = require('./api') as typeof import('./api');
+    cached = createApiProvider();
   } else {
     const { createLocalProvider } = require('./local') as typeof import('./local');
     cached = createLocalProvider();

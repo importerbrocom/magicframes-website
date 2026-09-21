@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { isSupabaseConfigured } from '@/lib/data/provider';
+import { isApiMode } from '@/lib/data/provider';
 import ImagesManager from './ImagesManager';
 import VideosManager from './VideosManager';
 import ProjectsManager from './ProjectsManager';
@@ -21,7 +21,7 @@ interface DashboardProps {
 
 export default function Dashboard({ onLogout }: DashboardProps) {
   const [tab, setTab] = useState<Tab>('images');
-  const usingSupabase = isSupabaseConfigured();
+  const apiMode = isApiMode();
 
   return (
     <div className="min-h-screen bg-blush-50">
@@ -30,7 +30,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <div>
             <p className="font-serif text-xl text-ink-900">MagicFrames Admin</p>
             <p className="text-xs uppercase tracking-widest text-ink-700/50">
-              {usingSupabase ? 'Connected to Supabase' : 'Local fallback (this browser only)'}
+              {apiMode
+                ? 'Connected to your MySQL database'
+                : 'Local preview (this browser only)'}
             </p>
           </div>
           <button
