@@ -1,0 +1,13 @@
+# Uploaded images are static files. Never execute anything from this folder.
+# This is a defence-in-depth measure: api/upload.php already rejects anything
+# that is not a real JPG/PNG/WebP/GIF image.
+
+php_flag engine off
+RemoveHandler .php .phtml .phar .cgi .pl .py
+AddType text/plain .php .phtml .phar
+
+Options -Indexes
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

@@ -1,0 +1,32 @@
+# MagicFrames API — Apache / LiteSpeed rules (Hostinger uses LiteSpeed).
+#
+# The endpoint files (auth.php, images.php, videos.php, projects.php,
+# upload.php) are meant to be reachable. Everything that holds credentials or
+# internal code is blocked below.
+
+# 1) Never serve the database credentials, even if PHP stops executing for any
+#    reason (a misconfiguration would otherwise dump the file as plain text).
+<FilesMatch "^config(\.sample)?\.php$">
+    Require all denied
+</FilesMatch>
+
+# 2) The SQL schema is not secret, but there is no reason to expose it.
+<FilesMatch "\.(sql|md)$">
+    Require all denied
+</FilesMatch>
+
+# 3) setup_admin.php refuses to run over HTTP in PHP as well; block it here too.
+<FilesMatch "^setup_admin\.php$">
+    Require all denied
+</FilesMatch>
+
+# 4) Internal library code is only ever included by the endpoints.
+RedirectMatch 404 ^/.*/api/lib/
+
+# 5) Do not advertise directory contents.
+Options -Indexes
+
+# 6) Sensible defaults for JSON responses.
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

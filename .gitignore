@@ -24,3 +24,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# PHP API — server-side secrets and runtime data (never commit these)
+/api/config.php
+/api/.data/
+
+# Uploaded images live on the server, not in git
+/uploads/*
+!/uploads/.gitkeep
+!/uploads/.htaccess
