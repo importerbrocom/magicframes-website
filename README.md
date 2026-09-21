@@ -1,166 +1,157 @@
 # MagicFrames — Wedding Photography & Films
 
-A modern, mobile-first marketing site for the MagicFrames wedding company, with
-a password-protected admin dashboard for managing the image gallery, video
+A modern, mobile-first website for the MagicFrames wedding company, with a
+password-protected admin dashboard for managing the image gallery, video
 gallery, and latest projects.
 
-Built with **Next.js (App Router) + TypeScript + Tailwind CSS + Framer Motion**
-and shipped as a **static export** so it can be hosted on a Hostinger web plan.
-Videos are embedded from **YouTube / Vimeo** (not self-hosted).
+Built for **Hostinger shared hosting**:
+
+- **Front end** — Next.js (App Router) + TypeScript + Tailwind CSS + Framer
+  Motion, exported as a **static site** (plain HTML/CSS/JS, no Node needed).
+- **Back end** — a small **PHP + MySQL** REST API in [`api/`](api), because
+  Hostinger's web plan provides PHP and MySQL but no Node.js runtime.
+- **Videos** are embedded from **YouTube / Vimeo** (never uploaded).
+
+> **Why a PHP API?** A browser cannot connect to MySQL directly, and it must
+> never hold your database password. The PHP API is the server-side layer in
+> between: the browser calls `/api/...`, and only PHP ever sees the credentials.
 
 ---
 
 ## Highlights
 
-- Mobile-first, animated design (Framer Motion scroll reveals, hover effects, an
+- Mobile-first animated design (Framer Motion scroll reveals, hover effects,
   animated mobile menu).
 - Public sections: Hero, About, Image Gallery, Video Gallery, Latest Projects,
   Contact.
-- Admin dashboard at `/admin` to add / edit / delete content in all three areas.
-- Two data backends behind one interface:
-  - **Local fallback** (default): works with **zero external accounts** — no
-    setup, no keys. Content is stored in the browser via `localStorage`.
-  - **Supabase** (optional): a free managed Postgres database so content is
-    shared across all visitors and devices.
+- Admin dashboard at `/admin` with add / edit / delete for all three content
+  areas, plus **drag-free image uploads** straight to your server.
+- **Real server-side login** — passwords are bcrypt-hashed in MySQL and verified
+  by PHP. Nothing secret is shipped to the browser.
 - Every image slot is an annotated placeholder (e.g. `1600 x 1067`) so you know
   exactly what size to upload before you have real photos.
 
-> **Contact form:** since there is no server, the form composes a `mailto:`
-> link that opens the visitor's email app. Very long messages can exceed
-> browser/OS URL limits, so the form detects that case and asks the visitor to
-> email `hello@magicframes.studio` directly instead of silently truncating. The
-> studio email is also always shown as a plain link beside the form.
-
 ---
 
-## Local development (no accounts needed)
+## Deploying to Hostinger
 
-Requires Node.js 18+.
+Your document root folder is called **`mabsite`**. The finished layout is:
+
+```
+mabsite/
+├── index.html          ← from out/
+├── admin/index.html    ← from out/
+├── 404.html            ← from out/
+├── _next/              ← from out/   (CSS + JS)
+├── api/                ← the PHP backend (this repo's api/ folder)
+│   └── config.php      ← you create this on the server (never committed)
+└── uploads/            ← uploaded photos land here
+```
+
+### Step 1 — Create the database
+
+In **hPanel → Databases → MySQL Databases**, create a database and a user, and
+note the **database name**, **username**, **password**, and **host** (usually
+`localhost` on Hostinger).
+
+### Step 2 — Import the tables
+
+Import [`api/schema.sql`](api/schema.sql) using either:
+
+- **phpMyAdmin** — hPanel → Databases → phpMyAdmin → select your database →
+  **Import** → choose `api/schema.sql` → **Go**; or
+- **SSH** —
+
+  ```bash
+  mysql -u YOUR_DB_USER -p YOUR_DB_NAME < api/schema.sql
+  ```
+
+This creates `gallery_images`, `gallery_videos`, `projects`, and `admin_users`.
+
+### Step 3 — Build the static site
+
+On your own computer (Node.js 18+ required just for this build step):
 
 ```bash
 npm install
-npm run dev
+npm run build
 ```
 
-Open <http://localhost:3000> for the site and
-<http://localhost:3000/admin> for the dashboard.
+This produces the **`out/`** folder. No configuration is needed: the app calls
+`/api` on its own domain by default.
 
-With no environment variables set, the app uses the **local fallback** data
-provider seeded with placeholder demo content, so everything works immediately
-with no Supabase account.
+### Step 4 — Upload the files
 
-### Admin login (local fallback)
+Upload into `mabsite/` using **hPanel → File Manager** or FTP/SFTP:
 
-The dashboard is protected by a password gate. The password comes from
-`NEXT_PUBLIC_ADMIN_PASSWORD`; if that is not set, a development default is used:
+1. Everything **inside** `out/` (not the folder itself) → `mabsite/`
+2. The whole **`api/`** folder → `mabsite/api/`
+3. Create an empty **`uploads/`** folder → `mabsite/uploads/`, and set its
+   permissions to **755** so PHP can write to it.
 
+Over SSH you can copy it all in one go:
+
+```bash
+rsync -avz -e "ssh -p 65002" out/ USER@SERVER:~/domains/YOURDOMAIN/mabsite/
+rsync -avz -e "ssh -p 65002" api  USER@SERVER:~/domains/YOURDOMAIN/mabsite/
 ```
-magicframes
+
+### Step 5 — Add your database credentials (server-side only)
+
+Over SSH, or with the File Manager's editor:
+
+```bash
+cd ~/domains/YOURDOMAIN/mabsite/api
+cp config.sample.php config.php
+nano config.php        # fill in dbname, user, password (and host if needed)
 ```
 
-Set your own before deploying (see below). The auth flag is stored in
-`sessionStorage`, so it clears when you close the browser tab.
+`config.php` is gitignored and blocked from web access by `api/.htaccess`, so
+your password never reaches a visitor's browser.
 
-> **⚠️ Security: the local-fallback password is UI-gating only, not access
-> control.** Because this is a static export, every `NEXT_PUBLIC_*` value —
-> including `NEXT_PUBLIC_ADMIN_PASSWORD` — is **baked into the shipped
-> JavaScript at build time** and can be read by anyone who opens the browser
-> devtools. The password only keeps casual visitors out of the dashboard UI; it
-> is *not* a real authentication boundary. This is acceptable in fallback mode
-> because fallback writes only touch the visitor's own browser `localStorage`
-> and can never affect other visitors or your live content.
->
-> **For any real deployment, use the Supabase path (below).** With Supabase
-> configured, `/admin` authenticates through **Supabase Auth** (credentials
-> validated server-side, never shipped in the bundle) and the database's Row
-> Level Security policies allow public reads but restrict writes to
-> authenticated admins. That is the intended production posture.
+### Step 6 — Create your admin login
 
-> **Note on the local fallback:** content added through the dashboard is saved
-> in *that browser only* (`localStorage`). It is perfect for previewing and for
-> filling in real content sizes, but for a live site where content must be
-> shared across all visitors, use Supabase (below).
+Still over SSH, from the `mabsite` folder:
+
+```bash
+php api/setup_admin.php your-username 'your-strong-password'
+```
+
+Wrap the password in single quotes so the shell doesn't interpret `$` or `!`.
+Re-running the command for the same username **changes** that user's password.
+
+No SSH? Generate a hash and insert it manually — see the instructions at the
+bottom of [`api/schema.sql`](api/schema.sql).
+
+### Step 7 — Sign in
+
+Visit `https://yourdomain.com/admin/` and log in. The header should read
+**"Connected to your MySQL database"**.
 
 ---
 
-## Environment variables
+## Managing content
 
-Copy `.env.example` to `.env.local` and fill in what you need. All variables are
-optional for local development.
+Go to `/admin`, sign in, then use the tabs:
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL. Set **both** Supabase vars to switch from the local fallback to Supabase. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key. |
-| `NEXT_PUBLIC_ADMIN_PASSWORD` | Password for `/admin` in local-fallback mode. Defaults to `magicframes` if unset. **UI-gating only** — it is baked into the client bundle, so treat it as a soft gate and use Supabase Auth for real access control. |
-
-Because this is a **static export**, all `NEXT_PUBLIC_*` values are baked into
-the site **at build time** — you must set them *before* running `npm run build`,
-not on the server afterwards.
-
----
-
-## Optional: connect Supabase (shared content)
-
-Use Supabase when you want content to be shared across all visitors and to
-manage it from any device.
-
-1. Create a free project at <https://supabase.com>.
-2. In the Supabase dashboard go to **SQL Editor → New query**, paste the
-   contents of [`supabase/schema.sql`](supabase/schema.sql), and run it. This
-   creates the `gallery_images`, `gallery_videos`, and `projects` tables with
-   public-read / admin-write Row Level Security policies.
-3. Create your admin user: **Authentication → Users → Add user** (email +
-   password). You will sign in with this on `/admin`.
-4. In **Project Settings → API**, copy the **Project URL** and the **anon
-   public** key into `.env.local`:
-
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-   ```
-
-5. Restart `npm run dev`. The `/admin` login now asks for the Supabase email +
-   password, and all content reads/writes go to your database.
-
-### Image uploads with Supabase Storage (optional)
-
-The forms accept an image **URL**. To host photos on Supabase, create a public
-Storage bucket (**Storage → Create bucket → `media` → Public: ON**), upload your
-images, and paste each file's public URL into the image/cover fields. See the
-notes at the bottom of `supabase/schema.sql`.
-
----
-
-## Managing content in `/admin`
-
-Go to `/admin`, log in, and use the tabs:
-
-- **Images** — title, image URL, alt text, and **width/height** (required).
+- **Images** — title, alt text, and width/height. Either paste an image URL or
+  use **Or upload a photo** to upload a file; the width and height fill in
+  automatically from the uploaded image.
 - **Videos** — title, provider (YouTube/Vimeo), and the video **URL or ID**
-  (paste the full share link — the ID is parsed automatically), plus thumbnail
-  **width/height**. **Unlisted Vimeo videos are supported**: paste the full
-  private link (e.g. `https://vimeo.com/123456789/abcdef123` or a
-  `?h=abcdef123` link) and the privacy hash is preserved so the embed loads.
-- **Projects** — title, description, date, cover image URL, and cover
-  **width/height** (required).
+  (paste the full share link — the ID is extracted for you), plus thumbnail
+  size. **Unlisted Vimeo links work**: paste the full private URL
+  (`https://vimeo.com/123456789/abcdef123`) and the privacy hash is preserved.
+- **Projects** — title, description, date, and a cover image (URL or upload).
 
-Lists refresh after every add / edit / delete, and the changes appear in the
-matching section on the public site.
+Changes appear on the public site immediately.
 
-### How placeholder dimensions work & swapping in real images
+### Placeholders and image sizes
 
-Every image slot renders a labeled placeholder box showing its intended size
-(e.g. `1600 x 1067`). The number comes from the width/height you enter, which is
-why those fields are required — they keep each slot correctly sized and
-documented while you gather real photos.
+Every image slot renders a labelled placeholder showing its intended size (e.g.
+`1600 x 1067`) until a real image is set, which is why width/height are
+required. Uploading a photo replaces the placeholder at the same slot.
 
-To swap in a real image, simply edit the item and paste an image **URL** into
-the URL field (an external link, a `/public` path, or a Supabase Storage URL).
-As soon as a `src` is present, the placeholder is replaced by the real image at
-the same dimensions. No code changes needed.
-
-Recommended sizes used by the design:
+Sizes used by the design:
 
 | Slot | Suggested size |
 | --- | --- |
@@ -170,79 +161,109 @@ Recommended sizes used by the design:
 | Video thumbnail | 1280 x 720 |
 | Project cover | 600 x 400 |
 
+Uploads accept **JPG, PNG, WebP, or GIF up to 8 MB**. The server verifies that a
+file really is an image, renames it randomly, and refuses anything executable.
+
 ---
 
-## Build
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+Open <http://localhost:3000>. Two options for the data layer:
+
+**a) Design-only mode (no database).** Put this in `.env.local`:
+
+```bash
+NEXT_PUBLIC_USE_LOCAL=1
+```
+
+Content is kept in your browser's `localStorage`, seeded with demo placeholders,
+and `/admin` uses a simple development password (`magicframes`, override with
+`NEXT_PUBLIC_ADMIN_PASSWORD`). Nothing is shared between browsers — this mode is
+for working on the design offline.
+
+**b) Against a real PHP + MySQL backend.** Serve the built site and `api/`
+together from one document root, exactly like production:
 
 ```bash
 npm run build
+mkdir -p /tmp/site && cp -r out/* /tmp/site/ && cp -r api /tmp/site/
+mkdir -p /tmp/site/uploads
+cp api/config.sample.php /tmp/site/api/config.php   # then edit it
+php -S 127.0.0.1:8080 -t /tmp/site
 ```
 
-This produces a fully static site in the `out/` directory (via
-`output: 'export'` in `next.config.mjs`). The `/admin` route is included in the
-export.
+For a quick test without MySQL, `api/config.php` also accepts
+`'driver' => 'sqlite'` with a `'sqlite_path'`.
 
 ---
 
-## Deployment
+## Environment variables
 
-### A) Primary path — static export to Hostinger (web plan)
+All optional — the defaults suit a normal Hostinger deployment. Copy
+`.env.example` to `.env.local` to change them.
 
-Hostinger's shared **web plan** serves static files (HTML/CSS/JS) and does **not
-run a persistent Node.js server**. This project is built as a static export
-specifically for that.
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_API_BASE_URL` | Where the PHP API lives. Defaults to the relative `/api`, correct when the site and `api/` share a document root. Set it only if the API is on another domain. |
+| `NEXT_PUBLIC_USE_LOCAL` | Set to `1` to bypass the API and keep content in `localStorage` (design-only mode). |
+| `NEXT_PUBLIC_ADMIN_PASSWORD` | Development password, used **only** when `NEXT_PUBLIC_USE_LOCAL=1`. Irrelevant in production. |
 
-1. **Set your env vars first** (they are baked in at build time). If you use
-   Supabase, put the two `NEXT_PUBLIC_SUPABASE_*` values in `.env.local`; always
-   set a strong `NEXT_PUBLIC_ADMIN_PASSWORD` if you are relying on the local
-   fallback. **Rebuild any time these change.**
-2. Build the static site:
+> Because the site is a **static export**, these are baked in at **build time** —
+> change one and run `npm run build` again. Your **database credentials are not
+> among them**: they live only in `api/config.php` on the server.
 
-   ```bash
-   npm run build
-   ```
+---
 
-3. Open the generated **`out/`** folder. Upload **everything inside `out/`**
-   (not the folder itself) into your domain's `public_html` directory, using
-   either:
-   - **hPanel → File Manager** — enter `public_html`, upload a zip of the
-     contents of `out/`, then extract it there; or
-   - **FTP** (FileZilla) — connect with your Hostinger FTP credentials and copy
-     the contents of `out/` into `public_html`.
+## Security notes
 
-4. Visit your domain. The site is live, and `/admin/` works from the browser.
+- Admin passwords are stored as bcrypt hashes (`password_hash`) and verified
+  server-side; the session is an HttpOnly cookie.
+- Every create / update / delete / upload endpoint rejects unauthenticated
+  requests with `401`. Public reads are the only unauthenticated operation.
+- All SQL uses prepared statements with bound parameters.
+- Uploads are validated by extension **and** real MIME type, stored under
+  randomized filenames, and `uploads/.htaccess` disables script execution there.
+- `api/.htaccess` blocks direct access to `config.php`, `api/lib/`, the schema,
+  and `setup_admin.php` (which also refuses to run over HTTP).
+- Consider deleting `api/setup_admin.php` from the server once your admin user
+  exists.
 
-> Because the site is static, **Supabase env vars must be set at build time** —
-> there is no server on Hostinger to inject them at runtime. If you change
-> Supabase keys or the admin password, rebuild and re-upload `out/`.
+---
 
-> Content added in the **local fallback** mode lives only in the browser that
-> added it, so for a shared live site connect Supabase before building.
+## The contact form
 
-### B) Alternative — deploy the full app to Vercel + point Hostinger's domain
-
-If you prefer a hosted Node environment (e.g. to add server features later),
-deploy to Vercel and use your Hostinger domain via DNS:
-
-1. Push this repo to GitHub and import it at <https://vercel.com/new>.
-2. Add the same environment variables in **Vercel → Project → Settings →
-   Environment Variables**.
-3. Deploy. Vercel gives you a URL like `your-site.vercel.app`.
-4. In Vercel, add your custom domain and follow its DNS instructions.
-5. In **Hostinger → hPanel → DNS / Nameservers**, point the domain at Vercel
-   (either update the `A` / `CNAME` records Vercel provides, or set Vercel's
-   nameservers). DNS changes can take some time to propagate.
+There is no mail server involved: the form opens the visitor's email app via a
+`mailto:` link. Very long messages can exceed URL limits, so the form detects
+that and shows a direct email address instead. The studio email is always
+visible beside the form as a plain link.
 
 ---
 
 ## Project structure
 
 ```
-app/                 App Router pages (public site + /admin)
-components/          UI, section components, PlaceholderImage, animation helpers
-components/admin/    Admin dashboard (tabs + Images/Videos/Projects managers)
-lib/                 Types, data providers (local + Supabase), auth, helpers
-supabase/schema.sql  Database schema + RLS + storage notes
-public/              Static assets
-out/                 Static export produced by `npm run build` (gitignored)
+app/                  App Router pages (public site + /admin)
+components/           Sections, admin managers, PlaceholderImage, animations
+lib/types.ts          Shared content types
+lib/data/api.ts       Data provider backed by the PHP API (+ image upload)
+lib/data/local.ts     localStorage provider for design-only mode
+lib/data/provider.ts  Provider interface and selection
+lib/auth.ts           Admin login against api/auth.php
+api/                  PHP + MySQL backend
+  schema.sql          MySQL tables (import this once)
+  config.sample.php   Copy to config.php on the server
+  auth.php            Login / logout / session check
+  images.php          Image gallery CRUD
+  videos.php          Video gallery CRUD
+  projects.php        Latest Projects CRUD
+  upload.php          Authenticated image upload
+  setup_admin.php     CLI-only admin user creation
+  lib/                PDO bootstrap, helpers, UUID, shared CRUD
+uploads/              Uploaded images (runtime; gitignored)
+out/                  Static export from `npm run build` (gitignored)
 ```

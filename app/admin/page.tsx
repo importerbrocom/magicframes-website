@@ -4,29 +4,32 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Dashboard from '@/components/admin/Dashboard';
-import { isSupabaseConfigured } from '@/lib/data/provider';
-import { isAuthenticated, login, logout } from '@/lib/auth';
+import { isApiMode } from '@/lib/data/provider';
+import { isAuthenticated, login, logout, verifySession } from '@/lib/auth';
 
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [ready, setReady] = useState(false);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [usingSupabase, setUsingSupabase] = useState(false);
+  const [apiMode, setApiMode] = useState(false);
 
   useEffect(() => {
+    setApiMode(isApiMode());
+    // Optimistically use the cached hint, then confirm with the server so an
+    // expired PHP session cannot leave the dashboard unlocked.
     setAuthed(isAuthenticated());
-    setUsingSupabase(isSupabaseConfigured());
     setReady(true);
+    void verifySession().then(setAuthed);
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const result = await login(password, email);
+    const result = await login(password, username);
     if (result.ok) {
       setAuthed(true);
       setPassword('');
@@ -36,8 +39,8 @@ export default function AdminPage() {
     setBusy(false);
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     setAuthed(false);
   }
 
@@ -68,28 +71,29 @@ export default function AdminPage() {
         </motion.p>
         <h1 className="mt-3 font-serif text-4xl text-ink-900">Admin access</h1>
         <p className="mt-3 text-sm text-ink-700/70">
-          Enter your {usingSupabase ? 'Supabase credentials' : 'password'} to manage the
-          galleries and projects.
+          {apiMode
+            ? 'Sign in with your admin username and password to manage the galleries and projects.'
+            : 'Enter your password to manage the galleries and projects.'}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-          {usingSupabase ? (
+          {apiMode ? (
             <div>
               <label
-                htmlFor="admin-email"
+                htmlFor="admin-username"
                 className="block text-xs uppercase tracking-widest text-ink-700/70"
               >
-                Email
+                Username
               </label>
               <input
-                id="admin-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="admin-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
                 required
                 className="mt-2 w-full rounded-lg border border-blush-200 bg-blush-50 px-4 py-3 text-ink-900 outline-none focus:border-gold-400"
-                placeholder="admin@magicframes.studio"
+                placeholder="admin"
               />
             </div>
           ) : null}

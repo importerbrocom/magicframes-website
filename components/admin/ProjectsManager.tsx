@@ -6,6 +6,7 @@ import PlaceholderImage from '@/components/PlaceholderImage';
 import { getDataProvider } from '@/lib/data/provider';
 import type { Project } from '@/lib/types';
 import { Button, Field, TextArea, TextInput } from './ui';
+import ImageUploadField from './ImageUploadField';
 
 interface FormState {
   title: string;
@@ -154,6 +155,17 @@ export default function ProjectsManager() {
             placeholder="https://... or /uploads/cover.jpg"
           />
         </Field>
+        <ImageUploadField
+          label="Or upload a cover photo"
+          onUploaded={({ url, width, height }) =>
+            setForm((prev) => ({
+              ...prev,
+              coverSrc: url,
+              coverWidth: String(width),
+              coverHeight: String(height),
+            }))
+          }
+        />
         <div className="grid grid-cols-2 gap-4">
           <Field id="proj-width" label="Cover width (px)">
             <TextInput
