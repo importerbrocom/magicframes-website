@@ -5,6 +5,10 @@
 /.next/
 /out/
 
+# NOTE: deploy/ is intentionally NOT ignored. It holds the built,
+# ready-to-upload files so they can be downloaded from GitHub by someone
+# without Node.js installed. Regenerate it with ./scripts/build-deploy.sh
+
 # production
 /build
 

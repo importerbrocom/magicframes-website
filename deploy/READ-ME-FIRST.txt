@@ -1,0 +1,21 @@
+MagicFrames — ready-to-upload website files
+===========================================
+
+Upload EVERYTHING inside this folder into your Hostinger document root
+(your "mabsite" folder). Do not upload the "deploy" folder itself — only
+its contents.
+
+After uploading, two one-time steps are required:
+
+  1. api/config.php   — copy api/config.sample.php to api/config.php and
+                        fill in your MySQL database details.
+  2. Import the database tables from api/schema.sql using phpMyAdmin.
+  3. Create your admin login (see the README on GitHub).
+
+Set the uploads/ folder permissions to 755 so photos can be saved.
+
+IMPORTANT: make sure hidden files (names starting with a dot, like
+.htaccess) are visible in your file manager and get uploaded too. They
+contain security rules.
+
+Full instructions: DEPLOY.md in the GitHub repository.

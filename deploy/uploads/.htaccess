@@ -1,0 +1,28 @@
+# Uploaded images are static files. Never execute anything from this folder.
+# Defence in depth: api/upload.php already rejects anything that is not a real
+# JPG/PNG/WebP/GIF image.
+#
+# NOTE: `php_flag` is a mod_php directive. On Apache with PHP-FPM/FastCGI an
+# unguarded `php_flag` is an unknown directive and makes the server return 500
+# for EVERY file in this folder — which would break every photo on the site.
+# It is therefore wrapped below, and the RemoveHandler/AddType lines (which are
+# core Apache and always safe) do the actual work.
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php5.c>
+    php_flag engine off
+</IfModule>
+
+RemoveHandler .php .phtml .phar .php3 .php4 .php5 .php7 .php8 .cgi .pl .py .jsp .asp .shtml
+AddType text/plain .php .phtml .phar .php3 .php4 .php5 .php7 .php8
+
+Options -Indexes -ExecCGI
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

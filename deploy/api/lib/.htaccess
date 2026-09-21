@@ -1,0 +1,7 @@
+# These files only define functions and are included by the endpoints one level
+# up. Nothing here should ever be requested directly over HTTP.
+#
+# This is the belt-and-braces companion to rule 5 in ../.htaccess: if mod_alias
+# (RedirectMatch) is unavailable, this still denies access.
+
+Require all denied
