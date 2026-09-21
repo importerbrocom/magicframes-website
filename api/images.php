@@ -17,9 +17,11 @@
 require_once __DIR__ . '/lib/crud.php';
 
 resource_handle([
-    'table'   => 'gallery_images',
-    'order'   => 'created_at DESC, id DESC',
-    'columns' => [
+    'table'       => 'gallery_images',
+    'order'       => 'created_at DESC, id DESC',
+    // Deleting a row also deletes the uploaded file this field points at.
+    'image_field' => 'src',
+    'columns'     => [
         ['db' => 'title',  'api' => 'title',  'type' => 'string', 'required' => false, 'maxLen' => 255],
         ['db' => 'src',    'api' => 'src',    'type' => 'string', 'required' => false, 'maxLen' => 2000],
         ['db' => 'width',  'api' => 'width',  'type' => 'int',    'min' => 1, 'max' => 100000],

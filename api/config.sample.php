@@ -54,6 +54,12 @@ return [
     'uploads_url' => '/uploads',
     // Max upload size in bytes (8 MB default).
     'max_upload_bytes' => 8 * 1024 * 1024,
+    // Re-encode uploads to strip camera metadata (EXIF). Wedding photos often
+    // embed GPS coordinates, and these files are served publicly — so this is
+    // on by default. Set to false to keep the original bytes untouched.
+    'strip_metadata' => true,
+    // JPEG/WebP quality used when re-encoding (1-100).
+    'jpeg_quality' => 92,
 
     // ---- CORS (optional) ----
     // The API is same-origin, so CORS is normally unnecessary. Leave empty.

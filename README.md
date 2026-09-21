@@ -86,14 +86,19 @@ Upload into `mabsite/` using **hPanel → File Manager** or FTP/SFTP:
 
 1. Everything **inside** `out/` (not the folder itself) → `mabsite/`
 2. The whole **`api/`** folder → `mabsite/api/`
-3. Create an empty **`uploads/`** folder → `mabsite/uploads/`, and set its
-   permissions to **755** so PHP can write to it.
+3. The whole **`uploads/`** folder from this repo → `mabsite/uploads/`, then set
+   its permissions to **755** so PHP can write to it.
 
-Over SSH you can copy it all in one go:
+> Upload the repo's `uploads/` folder rather than creating an empty one: it
+> contains a `.htaccess` that stops anything in there from ever being executed.
+> Make sure hidden (dot) files are visible in File Manager, or they'll be missed.
+
+Over SSH you can copy it all in one go (the trailing dots keep hidden files):
 
 ```bash
-rsync -avz -e "ssh -p 65002" out/ USER@SERVER:~/domains/YOURDOMAIN/mabsite/
-rsync -avz -e "ssh -p 65002" api  USER@SERVER:~/domains/YOURDOMAIN/mabsite/
+rsync -avz -e "ssh -p 65002" out/     USER@SERVER:~/domains/YOURDOMAIN/mabsite/
+rsync -avz -e "ssh -p 65002" api      USER@SERVER:~/domains/YOURDOMAIN/mabsite/
+rsync -avz -e "ssh -p 65002" uploads  USER@SERVER:~/domains/YOURDOMAIN/mabsite/
 ```
 
 ### Step 5 — Add your database credentials (server-side only)
@@ -200,6 +205,11 @@ php -S 127.0.0.1:8080 -t /tmp/site
 For a quick test without MySQL, `api/config.php` also accepts
 `'driver' => 'sqlite'` with a `'sqlite_path'`.
 
+> ⚠️ **Use sqlite for local testing only — never on the live server.** The
+> database file would sit inside your web folder, and it contains your admin
+> password hash. `api/.htaccess` denies `.sqlite` files and the `.data`
+> directory as a safety net, but on the live site always use `'driver' => 'mysql'`.
+
 ---
 
 ## Environment variables
@@ -228,10 +238,21 @@ All optional — the defaults suit a normal Hostinger deployment. Copy
 - All SQL uses prepared statements with bound parameters.
 - Uploads are validated by extension **and** real MIME type, stored under
   randomized filenames, and `uploads/.htaccess` disables script execution there.
-- `api/.htaccess` blocks direct access to `config.php`, `api/lib/`, the schema,
-  and `setup_admin.php` (which also refuses to run over HTTP).
+- Uploaded photos are re-encoded to strip camera metadata, so **GPS coordinates
+  and device details are not published** with your wedding photos. Set
+  `'strip_metadata' => false` in `api/config.php` to keep the original bytes.
+- Deleting an image or project also deletes its uploaded file, unless another
+  entry still uses it.
+- `api/.htaccess` blocks direct access to `config.php`, the schema, database
+  files, and `setup_admin.php` (which also refuses to run over HTTP).
+  `api/lib/.htaccess` blocks the internal library folder.
+- Repeated failed logins are rate-limited: 5 failures from the same
+  username + IP trigger a 15-minute lockout (`login_attempts` table).
 - Consider deleting `api/setup_admin.php` from the server once your admin user
   exists.
+- **Serve the site over HTTPS.** Enable free SSL in hPanel and force an HTTPS
+  redirect; the admin login posts a password, and the session cookie is only
+  marked `Secure` on HTTPS.
 
 ---
 

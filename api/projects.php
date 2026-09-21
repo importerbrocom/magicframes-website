@@ -18,9 +18,11 @@
 require_once __DIR__ . '/lib/crud.php';
 
 resource_handle([
-    'table'   => 'projects',
-    'order'   => 'date DESC, created_at DESC',
-    'columns' => [
+    'table'       => 'projects',
+    'order'       => 'date DESC, created_at DESC',
+    // Deleting a row also deletes the uploaded cover file this field points at.
+    'image_field' => 'coverSrc',
+    'columns'     => [
         ['db' => 'title',        'api' => 'title',       'type' => 'string', 'required' => false, 'maxLen' => 255],
         ['db' => 'description',  'api' => 'description', 'type' => 'string', 'required' => false, 'maxLen' => 5000],
         ['db' => 'cover_src',    'api' => 'coverSrc',    'type' => 'string', 'required' => false, 'maxLen' => 2000],

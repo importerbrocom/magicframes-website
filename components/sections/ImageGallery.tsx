@@ -6,9 +6,11 @@ import PlaceholderImage from '@/components/PlaceholderImage';
 import Reveal from '@/components/Reveal';
 import { getDataProvider } from '@/lib/data/provider';
 import type { GalleryImage } from '@/lib/types';
+import SectionStatus, { type LoadState } from '@/components/SectionStatus';
 
 export default function ImageGallery() {
   const [images, setImages] = useState<GalleryImage[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
   const [active, setActive] = useState<GalleryImage | null>(null);
 
   useEffect(() => {
@@ -16,10 +18,16 @@ export default function ImageGallery() {
     getDataProvider()
       .listImages()
       .then((data) => {
-        if (alive) setImages(data);
+        if (alive) {
+          setImages(data);
+          setLoadState('ready');
+        }
       })
       .catch(() => {
-        if (alive) setImages([]);
+        if (alive) {
+          setImages([]);
+          setLoadState('error');
+        }
       });
     return () => {
       alive = false;
@@ -86,11 +94,7 @@ export default function ImageGallery() {
           ))}
         </div>
 
-        {images.length === 0 && (
-          <p className="mt-10 text-center text-sm text-ink-700/60">
-            Images will appear here once added from the dashboard.
-          </p>
-        )}
+        <SectionStatus state={loadState} count={images.length} noun="photos" />
       </div>
 
       {/* Lightbox */}

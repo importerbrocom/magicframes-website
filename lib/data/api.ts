@@ -50,12 +50,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const message = (payload as ApiErrorBody | null)?.error;
     if (response.status === 401) {
+      // The PHP session has gone. Clear the cached auth hint so the dashboard
+      // drops back to the login screen instead of staying visibly unlocked
+      // while every save fails.
+      onUnauthorized?.();
       throw new Error(message ?? 'Your session expired. Please sign in again.');
     }
     throw new Error(message ?? `Request failed (${response.status}).`);
   }
 
   return payload as T;
+}
+
+// Set by lib/auth.ts to avoid a circular import between the two modules.
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: () => void): void {
+  onUnauthorized = handler;
 }
 
 function jsonBody(data: unknown): RequestInit {

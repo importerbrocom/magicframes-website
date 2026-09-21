@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS gallery_images (
   width      INT          NOT NULL,
   height     INT          NOT NULL,
   alt        VARCHAR(500) NOT NULL DEFAULT '',
-  created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Video gallery. Maps to GalleryVideo
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS gallery_videos (
   video_id         VARCHAR(255)                NOT NULL,
   thumbnail_width  INT                         NOT NULL,
   thumbnail_height INT                         NOT NULL,
-  created_at       TIMESTAMP                   NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at       TIMESTAMP(6)                NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Latest projects. Maps to Project
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS projects (
   cover_width  INT          NOT NULL,
   cover_height INT          NOT NULL,
   date         VARCHAR(64)  NOT NULL DEFAULT '',
-  created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at   TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Admin users for the /admin dashboard login. Passwords are stored as bcrypt
@@ -65,7 +65,15 @@ CREATE TABLE IF NOT EXISTS admin_users (
   id            CHAR(36)     NOT NULL PRIMARY KEY,
   username      VARCHAR(191) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at    TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Failed sign-in counter used by api/lib/throttle.php to lock out brute-force
+-- attempts. Rows are keyed on "username|ip" and deleted on a successful login.
+CREATE TABLE IF NOT EXISTS login_attempts (
+  attempt_key  VARCHAR(255) NOT NULL PRIMARY KEY,
+  attempts     INT          NOT NULL DEFAULT 0,
+  last_attempt TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------

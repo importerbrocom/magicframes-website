@@ -151,15 +151,93 @@ function resource_update(PDO $pdo, array $spec, string $id, array $body): array
     return $updated;
 }
 
-/** Delete a row by id. */
+/**
+ * Delete a row by id, and remove its uploaded image file if it owned one.
+ * Without this the uploads/ folder would only ever grow, with no way to find
+ * or reclaim files whose rows are gone.
+ */
 function resource_delete(PDO $pdo, array $spec, string $id): void
 {
+    // Capture the image path before the row disappears.
+    $existing  = resource_find($pdo, $spec, $id);
+    $imageKey  = $spec['image_field'] ?? null;
+    $imagePath = ($existing && $imageKey) ? (string) ($existing[$imageKey] ?? '') : '';
+
     $stmt = $pdo->prepare('DELETE FROM ' . $spec['table'] . ' WHERE id = :id');
     $stmt->execute([':id' => $id]);
 
     if ($stmt->rowCount() === 0) {
         send_error('Not found', 404);
     }
+
+    if ($imagePath !== '' && !resource_image_still_used($pdo, $imagePath)) {
+        delete_uploaded_file($imagePath);
+    }
+}
+
+/**
+ * True when another row (in either table that stores images) still references
+ * this file, so a shared image is never deleted out from under it.
+ */
+function resource_image_still_used(PDO $pdo, string $path): bool
+{
+    foreach ([['gallery_images', 'src'], ['projects', 'cover_src']] as [$table, $column]) {
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(*) AS n FROM ' . $table . ' WHERE ' . $column . ' = :path'
+            );
+            $stmt->execute([':path' => $path]);
+            if ((int) ($stmt->fetch()['n'] ?? 0) > 0) {
+                return true;
+            }
+        } catch (PDOException $e) {
+            // If we cannot check, err on the side of keeping the file.
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Delete a file that this app uploaded. Only paths inside the configured
+ * uploads directory are ever touched: external URLs are left alone, and the
+ * resolved real path must sit under the uploads root, so a crafted value like
+ * "/uploads/../../config.php" cannot escape.
+ */
+function delete_uploaded_file(string $publicPath): void
+{
+    $config     = load_config();
+    $uploadsUrl = rtrim((string) ($config['uploads_url'] ?? '/uploads'), '/');
+    $uploadsDir = (string) ($config['uploads_dir'] ?? (__DIR__ . '/../../uploads'));
+
+    // Only handle our own upload URLs, never external links.
+    if ($uploadsUrl === '' || strpos($publicPath, $uploadsUrl . '/') !== 0) {
+        return;
+    }
+
+    $name = basename(substr($publicPath, strlen($uploadsUrl) + 1));
+    if ($name === '' || $name === '.' || $name === '..') {
+        return;
+    }
+
+    $realDir = realpath($uploadsDir);
+    if ($realDir === false) {
+        return;
+    }
+
+    $target     = $realDir . DIRECTORY_SEPARATOR . $name;
+    $realTarget = realpath($target);
+
+    // Must exist, be a regular file, and live directly inside uploads/.
+    if (
+        $realTarget === false
+        || !is_file($realTarget)
+        || strpos($realTarget, $realDir . DIRECTORY_SEPARATOR) !== 0
+    ) {
+        return;
+    }
+
+    @unlink($realTarget);
 }
 
 /** Resolve the target record id from the query string or the JSON body. */
@@ -215,5 +293,10 @@ function resource_handle(array $spec): void
         // Never leak connection strings / credentials to the client.
         error_log('[magicframes-api] DB error: ' . $e->getMessage());
         send_error('Database error. Check api/config.php and that the schema was imported.', 500);
+    } catch (RuntimeException $e) {
+        // Configuration problems (e.g. missing config.php) — safe to surface,
+        // since the message is written by us and contains no credentials.
+        error_log('[magicframes-api] Config error: ' . $e->getMessage());
+        send_error($e->getMessage(), 500);
     }
 }

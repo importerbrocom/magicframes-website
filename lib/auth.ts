@@ -1,5 +1,5 @@
 import { isApiMode } from '@/lib/data/provider';
-import { getApiBaseUrl } from '@/lib/data/api';
+import { getApiBaseUrl, setUnauthorizedHandler } from '@/lib/data/api';
 
 // Auth for the /admin dashboard.
 //
@@ -42,6 +42,31 @@ function setAuthenticated(value: boolean): void {
   }
 }
 
+// Listeners notified when the server rejects us as unauthenticated, so the
+// dashboard can drop back to the login form.
+const authListeners = new Set<(authed: boolean) => void>();
+
+export function onAuthChange(listener: (authed: boolean) => void): () => void {
+  authListeners.add(listener);
+  return () => authListeners.delete(listener);
+}
+
+function notifyAuthChange(authed: boolean): void {
+  authListeners.forEach((listener) => listener(authed));
+}
+
+// A 401 from any API call means the PHP session is gone.
+setUnauthorizedHandler(() => {
+  setAuthenticated(false);
+  notifyAuthChange(false);
+});
+
+/**
+ * Incremented on every successful login so a slower, earlier `verifySession()`
+ * response cannot overwrite a newer login result.
+ */
+let loginGeneration = 0;
+
 /**
  * Ask the server whether the current session cookie is still valid. Used on
  * mount so a stale sessionStorage hint cannot keep the dashboard unlocked
@@ -51,15 +76,23 @@ export async function verifySession(): Promise<boolean> {
   if (!isApiMode()) {
     return isAuthenticated();
   }
+  const generation = loginGeneration;
   try {
     const response = await fetch(`${getApiBaseUrl()}/auth.php?action=me`, {
       credentials: 'include',
     });
+    // A login that completed while this request was in flight wins.
+    if (generation !== loginGeneration) {
+      return isAuthenticated();
+    }
     if (!response.ok) {
       setAuthenticated(false);
       return false;
     }
     const data = (await response.json()) as { authenticated?: boolean };
+    if (generation !== loginGeneration) {
+      return isAuthenticated();
+    }
     const ok = data.authenticated === true;
     setAuthenticated(ok);
     return ok;
@@ -114,6 +147,7 @@ export async function login(password: string, identifier?: string): Promise<Logi
         return { ok: false, error: payload?.error ?? 'Sign in failed.' };
       }
 
+      loginGeneration += 1;
       setAuthenticated(true);
       return { ok: true };
     } catch {

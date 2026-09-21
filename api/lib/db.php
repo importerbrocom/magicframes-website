@@ -24,8 +24,17 @@ function load_config(): array
     if (is_file($configPath)) {
         $config = require $configPath;
     } elseif (is_file($samplePath)) {
-        // Fall back to the sample only for structure; it has no real password.
-        $config = require $samplePath;
+        // The sample has no real credentials, so it can only work for a local
+        // sqlite test. Fail loudly rather than emitting a confusing MySQL
+        // "access denied" when config.php was simply never created.
+        $sample = require $samplePath;
+        if (($sample['driver'] ?? 'mysql') !== 'sqlite') {
+            throw new RuntimeException(
+                'api/config.php is missing. Copy api/config.sample.php to api/config.php '
+                . 'and fill in your MySQL credentials.'
+            );
+        }
+        $config = $sample;
     } else {
         throw new RuntimeException('Missing api/config.php');
     }

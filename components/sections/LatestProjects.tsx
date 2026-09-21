@@ -6,6 +6,7 @@ import PlaceholderImage from '@/components/PlaceholderImage';
 import Reveal from '@/components/Reveal';
 import { getDataProvider } from '@/lib/data/provider';
 import type { Project } from '@/lib/types';
+import SectionStatus, { type LoadState } from '@/components/SectionStatus';
 
 // How many projects the "Latest Projects" section shows at once.
 const LATEST_LIMIT = 6;
@@ -37,6 +38,7 @@ function sortByDateDesc(a: Project, b: Project): number {
 
 export default function LatestProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
 
   useEffect(() => {
     let alive = true;
@@ -48,9 +50,13 @@ export default function LatestProjects() {
         // cap the count regardless of provider ordering.
         const latest = [...data].sort(sortByDateDesc).slice(0, LATEST_LIMIT);
         setProjects(latest);
+        setLoadState('ready');
       })
       .catch(() => {
-        if (alive) setProjects([]);
+        if (alive) {
+          setProjects([]);
+          setLoadState('error');
+        }
       });
     return () => {
       alive = false;
@@ -106,11 +112,7 @@ export default function LatestProjects() {
           ))}
         </div>
 
-        {projects.length === 0 && (
-          <p className="mt-10 text-center text-sm text-ink-700/60">
-            Projects will appear here once added from the dashboard.
-          </p>
-        )}
+        <SectionStatus state={loadState} count={projects.length} noun="projects" />
       </div>
     </section>
   );

@@ -18,6 +18,7 @@
 
 require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/helpers.php';
+require_once __DIR__ . '/lib/throttle.php';
 
 handle_preflight();
 start_secure_session();
@@ -85,7 +86,9 @@ if ($action === 'login') {
     }
 
     try {
-        $pdo  = get_db();
+        $pdo = get_db();
+        throttle_check($pdo, $username);
+
         $stmt = $pdo->prepare(
             'SELECT id, username, password_hash FROM admin_users WHERE username = :username LIMIT 1'
         );
@@ -95,11 +98,24 @@ if ($action === 'login') {
         error_log('[magicframes-api] auth DB error: ' . $e->getMessage());
         send_error('Database error. Check api/config.php and that the schema was imported.', 500);
         return;
+    } catch (RuntimeException $e) {
+        error_log('[magicframes-api] auth config error: ' . $e->getMessage());
+        send_error($e->getMessage(), 500);
+        return;
     }
 
-    if (!$row || !password_verify($password, (string) $row['password_hash'])) {
+    // Always run a bcrypt verification, even when the username does not exist,
+    // so the response time does not reveal which usernames are real.
+    $hash = $row
+        ? (string) $row['password_hash']
+        : '$2y$10$usesomesillystringfoeswpNpNSfDkYQNfqxLW6lrPeKVOvZ8jpSe';
+
+    if (!password_verify($password, $hash) || !$row) {
+        throttle_record_failure($pdo, $username);
         $invalid();
     }
+
+    throttle_clear($pdo, $username);
 
     // Prevent session fixation, then record the authenticated identity.
     session_regenerate_id(true);

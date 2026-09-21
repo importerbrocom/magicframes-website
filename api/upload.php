@@ -129,21 +129,18 @@ if (!move_uploaded_file($tmpPath, $destination)) {
 }
 @chmod($destination, 0644);
 
+// Strip camera metadata (EXIF) by re-encoding the image. Wedding photos
+// routinely carry GPS coordinates and device details, and these files are
+// served publicly — so this is a privacy measure, not just hygiene. It also
+// neutralises any data smuggled in metadata. Set 'strip_metadata' => false in
+// config.php to keep the original bytes.
+if (($config['strip_metadata'] ?? true) && function_exists('imagecreatefromstring')) {
+    strip_image_metadata($destination, $extension, (int) ($config['jpeg_quality'] ?? 92));
+}
+
 // Make sure the uploads folder can never execute scripts, even if something
 // unexpected ends up in there.
-$guard = rtrim($uploadsDir, '/') . '/.htaccess';
-if (!is_file($guard)) {
-    @file_put_contents(
-        $guard,
-        "# Serve uploads as static files only — never execute them.\n"
-        . "php_flag engine off\n"
-        . "RemoveHandler .php .phtml .phar .cgi .pl .py\n"
-        . "AddType text/plain .php .phtml .phar\n"
-        . "<IfModule mod_headers.c>\n"
-        . "    Header set X-Content-Type-Options \"nosniff\"\n"
-        . "</IfModule>\n"
-    );
-}
+ensure_uploads_guard($uploadsDir);
 
 send_json([
     'ok'     => true,
@@ -151,3 +148,79 @@ send_json([
     'width'  => (int) $width,
     'height' => (int) $height,
 ]);
+
+/**
+ * Re-encode an image in place so no metadata survives. Animated GIFs are left
+ * alone, because GD would flatten them to a single frame.
+ */
+function strip_image_metadata(string $path, string $extension, int $jpegQuality): void
+{
+    if ($extension === 'gif') {
+        return; // Avoid destroying animation.
+    }
+
+    $raw = @file_get_contents($path);
+    if ($raw === false) {
+        return;
+    }
+
+    $image = @imagecreatefromstring($raw);
+    if ($image === false) {
+        return; // Leave the validated original in place.
+    }
+
+    // Preserve transparency for the formats that support it.
+    if ($extension === 'png' || $extension === 'webp') {
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+    }
+
+    $temp = $path . '.tmp';
+    $ok   = false;
+    switch ($extension) {
+        case 'jpg':
+        case 'jpeg':
+            $ok = imagejpeg($image, $temp, $jpegQuality);
+            break;
+        case 'png':
+            $ok = imagepng($image, $temp);
+            break;
+        case 'webp':
+            $ok = function_exists('imagewebp') ? imagewebp($image, $temp, $jpegQuality) : false;
+            break;
+    }
+    imagedestroy($image);
+
+    if ($ok && is_file($temp) && filesize($temp) > 0) {
+        @rename($temp, $path);
+        @chmod($path, 0644);
+    } else {
+        @unlink($temp);
+    }
+}
+
+/** Write the no-execute guard into the uploads folder if it is missing. */
+function ensure_uploads_guard(string $uploadsDir): void
+{
+    $guard = rtrim($uploadsDir, '/') . '/.htaccess';
+    if (is_file($guard)) {
+        return;
+    }
+
+    // NOTE: php_flag is mod_php-only and returns 500 under PHP-FPM if used
+    // unguarded, so it is wrapped. RemoveHandler/AddType are core Apache and
+    // do the real work.
+    @file_put_contents(
+        $guard,
+        "# Serve uploads as static files only — never execute them.\n"
+        . "<IfModule mod_php.c>\n    php_flag engine off\n</IfModule>\n"
+        . "<IfModule mod_php7.c>\n    php_flag engine off\n</IfModule>\n"
+        . "<IfModule mod_php5.c>\n    php_flag engine off\n</IfModule>\n"
+        . "RemoveHandler .php .phtml .phar .php3 .php4 .php5 .php7 .php8 .cgi .pl .py\n"
+        . "AddType text/plain .php .phtml .phar .php3 .php4 .php5 .php7 .php8\n"
+        . "Options -Indexes -ExecCGI\n"
+        . "<IfModule mod_headers.c>\n"
+        . "    Header set X-Content-Type-Options \"nosniff\"\n"
+        . "</IfModule>\n"
+    );
+}

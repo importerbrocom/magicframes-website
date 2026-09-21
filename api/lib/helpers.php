@@ -18,8 +18,13 @@ function start_secure_session(): void
         return;
     }
 
+    // Detect HTTPS, including when TLS is terminated by a proxy/CDN in front of
+    // the origin (e.g. Cloudflare), so the session cookie keeps its Secure flag.
+    $forwardedProto = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (($_SERVER['SERVER_PORT'] ?? null) == 443);
+        || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+        || $forwardedProto === 'https'
+        || (($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '') === 'on');
 
     session_set_cookie_params([
         'lifetime' => 0,
@@ -56,6 +61,10 @@ function send_json($data, int $status = 200): void
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
+    // Content changes as soon as the admin edits it, so never let a browser or
+    // an intermediary CDN serve a stale list.
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
     apply_cors_headers();
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Dashboard from '@/components/admin/Dashboard';
 import { isApiMode } from '@/lib/data/provider';
-import { isAuthenticated, login, logout, verifySession } from '@/lib/auth';
+import { isAuthenticated, login, logout, onAuthChange, verifySession } from '@/lib/auth';
 
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
@@ -23,6 +23,15 @@ export default function AdminPage() {
     setAuthed(isAuthenticated());
     setReady(true);
     void verifySession().then(setAuthed);
+
+    // If any API call later returns 401 (session expired mid-edit), drop back
+    // to the login form instead of leaving a dashboard that cannot save.
+    return onAuthChange((next) => {
+      setAuthed(next);
+      if (!next) {
+        setError('Your session expired. Please sign in again.');
+      }
+    });
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {

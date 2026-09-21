@@ -10,23 +10,33 @@
     Require all denied
 </FilesMatch>
 
-# 2) The SQL schema is not secret, but there is no reason to expose it.
-<FilesMatch "\.(sql|md)$">
-    Require all denied
-</FilesMatch>
-
-# 3) setup_admin.php refuses to run over HTTP in PHP as well; block it here too.
+# 2) setup_admin.php refuses to run over HTTP in PHP as well; block it here too.
 <FilesMatch "^setup_admin\.php$">
     Require all denied
 </FilesMatch>
 
-# 4) Internal library code is only ever included by the endpoints.
-RedirectMatch 404 ^/.*/api/lib/
+# 3) The SQL schema and notes are not secret, but there is no reason to expose them.
+<FilesMatch "\.(sql|md)$">
+    Require all denied
+</FilesMatch>
 
-# 5) Do not advertise directory contents.
+# 4) Never serve a database file. The optional sqlite driver writes to
+#    api/.data/, and that file contains the admin password hashes.
+<FilesMatch "\.(sqlite|sqlite3|db)$">
+    Require all denied
+</FilesMatch>
+RedirectMatch 404 (?i)/\.data(/|$)
+
+# 5) Internal library code is only ever included by the endpoints, never
+#    requested directly. Anchored at /api/ so it also matches when the site is
+#    served straight from the document root (the documented layout), and backed
+#    up by api/lib/.htaccess in case mod_alias is unavailable.
+RedirectMatch 404 (?i)^/(.*/)?api/lib(/|$)
+
+# 6) Do not advertise directory contents.
 Options -Indexes
 
-# 6) Sensible defaults for JSON responses.
+# 7) Sensible defaults for JSON responses.
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"
 </IfModule>
